@@ -1,8 +1,9 @@
 import requests
 import json
 import os
+import pytz
 from bs4 import BeautifulSoup
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
@@ -17,11 +18,21 @@ BASE_URL = "https://oldback.paloma365.com/company/report/report.php"
 
 COOKIE = "workspace_key=default; PHPSESSID=r2sqecb13um1t607ibi59bop27; key=94bacc8952bc856c45eace3bb6990603; zid=23553; _ym_uid=1778936973444711715; _ym_d=1778936973; _ym_isad=1; _fbp=fb.1.1778936972984.827730157221491058.AQYCAQIB; _tt_enable_cookie=1; _ttp=01KRREG1SG24V0BVW77CNDMXM6_.tt.1; __ddg1_=1IUCdDNFfoZ3yRsC9Yzp; ttcsid_CMJT09JC77UEKGPKG4KG=1778936973107::mSmndeRqgaWtxBARvmAA.1.1778937481743.1; ttcsid_D5SV5EJC77U1TOJ9VSLG=1778937477176::r30pPBediG7Vly_DBAxv.1.1778937481750.0; b24_sitebutton_hello=y; ttcsid_D5SUHV3C77U6BSHUJMR0=1778936973107::PtrUimeYIZoFG7i_--up.1.1778938707625.1; ttcsid=1778936973107::D1H5_EIFiwWIpEzOBwu9.1.1778938707625.0::1.499278.504068::508657.20.1047.682::283148.72.1739"
 
-# Файл где хранится список товаров
 ITEMS_FILE = "my_items.json"
-
-# Товары по умолчанию (только если файл ещё не создан)
 DEFAULT_ITEMS = ["50", "13", "2153", "2793", "2094", "1503"]
+
+# Часовой пояс Атырау
+TZ = pytz.timezone("Asia/Atyrau")
+
+# ============================================================
+# ДАТА В ТВОЁМ ЧАСОВОМ ПОЯСЕ
+# ============================================================
+
+def local_today():
+    return datetime.now(TZ).date()
+
+def local_yesterday():
+    return local_today() - timedelta(days=1)
 
 # ============================================================
 # УПРАВЛЕНИЕ СПИСКОМ ТОВАРОВ
@@ -144,7 +155,7 @@ def format_report(results, total_qty, total_sum, date_from, date_to):
     return "\n".join(lines)
 
 # ============================================================
-# ЗАЩИТА — только ты
+# ЗАЩИТА
 # ============================================================
 
 def only_me(func):
@@ -168,10 +179,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/yesterday — продажи за вчера\n"
         "/period 01.05.2026 16.05.2026 — за период\n"
         "/items 50 13 1503 — по конкретным ID (сегодня)\n\n"
-        "*Управление товарами по умолчанию:*\n"
-        "/myitems — показать текущий список\n"
-        "/additem 999 — добавить товар по ID\n"
-        "/removeitem 999 — убрать товар по ID\n"
+        "*Управление товарами:*\n"
+        "/myitems — показать список\n"
+        "/additem 999 — добавить товар\n"
+        "/removeitem 999 — убрать товар\n"
         "/resetitems — вернуть исходный список"
     )
     await update.message.reply_text(text, parse_mode="Markdown")
@@ -184,7 +195,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @only_me
 async def cmd_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    today = date.today().strftime("%d.%m.%Y")
+    today = local_today().strftime("%d.%m.%Y")
     await update.message.reply_text("⏳ Получаю данные...")
     result, error = fetch_report(f"{today} 00:00", f"{today} 23:59")
     if error:
@@ -199,7 +210,7 @@ async def cmd_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @only_me
 async def cmd_yesterday(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    yesterday = (date.today() - timedelta(days=1)).strftime("%d.%m.%Y")
+    yesterday = local_yesterday().strftime("%d.%m.%Y")
     await update.message.reply_text("⏳ Получаю данные...")
     result, error = fetch_report(f"{yesterday} 00:00", f"{yesterday} 23:59")
     if error:
@@ -236,7 +247,7 @@ async def cmd_items(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Использование: /items 50 13 1503")
         return
     item_ids = "|".join(context.args)
-    today = date.today().strftime("%d.%m.%Y")
+    today = local_today().strftime("%d.%m.%Y")
     await update.message.reply_text("⏳ Получаю данные...")
     result, error = fetch_report(f"{today} 00:00", f"{today} 23:59", item_ids=item_ids)
     if error:
@@ -271,7 +282,7 @@ async def cmd_additem(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     items.append(item_id)
     save_items(items)
-    await update.message.reply_text(f"✅ Товар `{item_id}` добавлен. Всего в списке: {len(items)} товаров.", parse_mode="Markdown")
+    await update.message.reply_text(f"✅ Товар `{item_id}` добавлен. Всего: {len(items)}.", parse_mode="Markdown")
 
 
 @only_me
@@ -282,11 +293,11 @@ async def cmd_removeitem(update: Update, context: ContextTypes.DEFAULT_TYPE):
     item_id = context.args[0]
     items = load_items()
     if item_id not in items:
-        await update.message.reply_text(f"Товар `{item_id}` не найден в списке.", parse_mode="Markdown")
+        await update.message.reply_text(f"Товар `{item_id}` не найден.", parse_mode="Markdown")
         return
     items.remove(item_id)
     save_items(items)
-    await update.message.reply_text(f"🗑 Товар `{item_id}` удалён. Осталось: {len(items)} товаров.", parse_mode="Markdown")
+    await update.message.reply_text(f"🗑 Товар `{item_id}` удалён. Осталось: {len(items)}.", parse_mode="Markdown")
 
 
 @only_me
@@ -294,12 +305,13 @@ async def cmd_resetitems(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_items(DEFAULT_ITEMS.copy())
     await update.message.reply_text("🔄 Список товаров сброшен до исходного.")
 
+
 # ============================================================
 # ЗАПУСК
 # ============================================================
 
 if __name__ == "__main__":
-    print("Бот запущен! Напиши /start в Telegram.")
+    print("Бот запущен! Часовой пояс: Asia/Atyrau")
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
