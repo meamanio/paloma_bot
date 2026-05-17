@@ -16,16 +16,30 @@ MY_TELEGRAM_ID = 182114715
 
 BASE_URL = "https://oldback.paloma365.com/company/report/report.php"
 
-COOKIE = "workspace_key=default; PHPSESSID=r2sqecb13um1t607ibi59bop27; zid=23553; _ym_uid=1778936973444711715; _ym_d=1778936973; _fbp=fb.1.1778936972984.827730157221491058.AQYCAQIB; _tt_enable_cookie=1; _ttp=01KRREG1SG24V0BVW77CNDMXM6_.tt.1; __ddg1_=1IUCdDNFfoZ3yRsC9Yzp; ttcsid_CMJT09JC77UEKGPKG4KG=1778936973107::mSmndeRqgaWtxBARvmAA.1.1778937481743.1; ttcsid_D5SV5EJC77U1TOJ9VSLG=1778937477176::r30pPBediG7Vly_DBAxv.1.1778937481750.0; ttcsid_D5SUHV3C77U6BSHUJMR0=1778936973107::PtrUimeYIZoFG7i_--up.1.1778938707625.1; ttcsid=1778936973107::D1H5_EIFiwWIpEzOBwu9.1.1778938707625.0::1.499278.504068::508657.20.1047.682::283148.72.1739; key=e2f0a60f1e4d4958f3368bb338e4a014"
+COOKIE_FILE = "cookie.txt"
+DEFAULT_COOKIE = "workspace_key=default; PHPSESSID=r2sqecb13um1t607ibi59bop27; key=94bacc8952bc856c45eace3bb6990603; zid=23553; _ym_uid=1778936973444711715; _ym_d=1778936973; _ym_isad=1; _fbp=fb.1.1778936972984.827730157221491058.AQYCAQIB; _tt_enable_cookie=1; _ttp=01KRREG1SG24V0BVW77CNDMXM6_.tt.1; __ddg1_=1IUCdDNFfoZ3yRsC9Yzp; ttcsid_CMJT09JC77UEKGPKG4KG=1778936973107::mSmndeRqgaWtxBARvmAA.1.1778937481743.1; ttcsid_D5SV5EJC77U1TOJ9VSLG=1778937477176::r30pPBediG7Vly_DBAxv.1.1778937481750.0; b24_sitebutton_hello=y; ttcsid_D5SUHV3C77U6BSHUJMR0=1778936973107::PtrUimeYIZoFG7i_--up.1.1778938707625.1; ttcsid=1778936973107::D1H5_EIFiwWIpEzOBwu9.1.1778938707625.0::1.499278.504068::508657.20.1047.682::283148.72.1739"
 
 ITEMS_FILE = "my_items.json"
 DEFAULT_ITEMS = ["50", "13", "2153", "2793", "2094", "1503"]
 
-# Часовой пояс Атырау
 TZ = pytz.timezone("Asia/Atyrau")
 
 # ============================================================
-# ДАТА В ТВОЁМ ЧАСОВОМ ПОЯСЕ
+# COOKIE
+# ============================================================
+
+def load_cookie():
+    if os.path.exists(COOKIE_FILE):
+        with open(COOKIE_FILE, "r") as f:
+            return f.read().strip()
+    return DEFAULT_COOKIE
+
+def save_cookie(cookie):
+    with open(COOKIE_FILE, "w") as f:
+        f.write(cookie)
+
+# ============================================================
+# ДАТА
 # ============================================================
 
 def local_today():
@@ -35,7 +49,7 @@ def local_yesterday():
     return local_today() - timedelta(days=1)
 
 # ============================================================
-# УПРАВЛЕНИЕ СПИСКОМ ТОВАРОВ
+# ТОВАРЫ
 # ============================================================
 
 def load_items():
@@ -57,7 +71,7 @@ def fetch_report(date_from, date_to, item_ids=None):
         item_ids = "|".join(load_items())
 
     headers = {
-        "Cookie": COOKIE,
+        "Cookie": load_cookie(),
         "User-Agent": "Mozilla/5.0",
         "Content-Type": "application/x-www-form-urlencoded",
     }
@@ -99,7 +113,7 @@ def fetch_report(date_from, date_to, item_ids=None):
             break
 
     if not data_table:
-        return None, "Таблица не найдена. Возможно cookie устарел."
+        return None, "Таблица не найдена. Cookie устарел — обнови через /updatecookie"
 
     results = []
     total_qty = "0"
@@ -177,13 +191,15 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "*Отчёты:*\n"
         "/today — продажи за сегодня\n"
         "/yesterday — продажи за вчера\n"
-        "/period 01.05.2026 16.05.2026 — за период\n"
+        "/period 01.05.2026 17.05.2026 — за период\n"
         "/items 50 13 1503 — по конкретным ID (сегодня)\n\n"
         "*Управление товарами:*\n"
         "/myitems — показать список\n"
         "/additem 999 — добавить товар\n"
         "/removeitem 999 — убрать товар\n"
-        "/resetitems — вернуть исходный список"
+        "/resetitems — вернуть исходный список\n\n"
+        "*Прочее:*\n"
+        "/updatecookie ВСТАВЬ_COOKIE — обновить cookie"
     )
     await update.message.reply_text(text, parse_mode="Markdown")
 
@@ -226,7 +242,7 @@ async def cmd_yesterday(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @only_me
 async def cmd_period(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
-        await update.message.reply_text("Использование: /period 01.05.2026 16.05.2026")
+        await update.message.reply_text("Использование: /period 01.05.2026 17.05.2026")
         return
     date_from, date_to = context.args[0], context.args[1]
     await update.message.reply_text("⏳ Получаю данные...")
@@ -306,6 +322,19 @@ async def cmd_resetitems(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🔄 Список товаров сброшен до исходного.")
 
 
+@only_me
+async def cmd_updatecookie(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text(
+            "Использование:\n`/updatecookie ВСТАВЬ_СЮДА_COOKIE`\n\nСкопируй cookie из DevTools → Network → Headers → Cookie",
+            parse_mode="Markdown"
+        )
+        return
+    new_cookie = " ".join(context.args)
+    save_cookie(new_cookie)
+    await update.message.reply_text("✅ Cookie обновлён! Проверь командой /today")
+
+
 # ============================================================
 # ЗАПУСК
 # ============================================================
@@ -323,4 +352,5 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("additem", cmd_additem))
     app.add_handler(CommandHandler("removeitem", cmd_removeitem))
     app.add_handler(CommandHandler("resetitems", cmd_resetitems))
+    app.add_handler(CommandHandler("updatecookie", cmd_updatecookie))
     app.run_polling()
