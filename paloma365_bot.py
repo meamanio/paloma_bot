@@ -51,7 +51,8 @@ def create_session():
     }
 
     resp = s.post(LOGIN_URL, data=payload, timeout=15)
-    print(f"[login] status={resp.status_code} body={resp.text[:300]}")
+    print(f"[login] status={resp.status_code} url={resp.url}")
+    print(f"[login] cookies={dict(s.cookies)}")
     return s
 
 
@@ -122,6 +123,9 @@ def fetch_report(date_from, date_to, item_ids=None, retry=True):
         )
     except Exception as e:
         return None, f"Ошибка сети: {e}"
+
+    print(f"[report] status={response.status_code} url={response.url}")
+    print(f"[report] body_start={response.text[:300]}")
 
     if response.status_code != 200:
         return None, f"Ошибка сервера: {response.status_code}"
