@@ -55,11 +55,12 @@ def create_session():
             if inp.get("name"):
                 payload[inp["name"]] = inp.get("value", "")
 
-    # Добавляем логин и пароль
+    # Добавляем логин и пароль (точные поля из формы)
     payload.update({
         "login": PALOMA_LOGIN,
         "password": PALOMA_PASSWORD,
-        "Enter": "Войти",
+        "chk": "1",
+        "phone": "",
     })
 
     # POST — логинимся
