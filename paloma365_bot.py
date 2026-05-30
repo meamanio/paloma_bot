@@ -50,9 +50,12 @@ def create_session():
         "phone": "+7undefined",
     }
 
-    resp = s.post(LOGIN_URL, data=payload, timeout=15)
-    print(f"[login] status={resp.status_code} url={resp.url}")
-    print(f"[login] cookies={dict(s.cookies)}")
+    # allow_redirects=False — останавливаем редирект, смотрим что сервер реально ставит
+    resp = s.post(LOGIN_URL, data=payload, timeout=15, allow_redirects=False)
+    print(f"[login] status={resp.status_code}")
+    print(f"[login] set-cookie headers={resp.headers.get('Set-Cookie', 'NONE')}")
+    print(f"[login] location={resp.headers.get('Location', 'NONE')}")
+    print(f"[login] all_cookies={[(c.name, c.value, c.domain) for c in s.cookies]}")
     return s
 
 
