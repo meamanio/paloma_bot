@@ -15,7 +15,7 @@ BOT_TOKEN = "8835739702:AAG04XCzLyVxym9gX0zvgzC_GVgJgTpdFgk"
 MY_TELEGRAM_ID = 182114715
 
 BASE_URL = "https://oldback.paloma365.com"
-LOGIN_URL = f"{BASE_URL}/company/user/login.php"
+LOGIN_URL = f"{BASE_URL}/company/user/login_ajax.php"
 REPORT_URL = f"{BASE_URL}/company/report/report.php"
 
 # Логин и пароль — берём из переменных окружения Railway (безопаснее)
@@ -35,36 +35,23 @@ TZ = pytz.timezone("Asia/Atyrau")
 _session = None
 
 def create_session():
-    """Создаёт новую сессию и логинится на сайте."""
+    """Создаёт новую сессию и логинится на сайте через login_ajax.php."""
     s = requests.Session()
     s.headers.update({"User-Agent": "Mozilla/5.0"})
 
-    # Сначала GET — получаем страницу логина (могут быть скрытые поля)
-    try:
-        r = s.get(f"{BASE_URL}/company/", timeout=15)
-    except Exception:
-        r = s.get(LOGIN_URL, timeout=15)
+    # GET главной — получаем начальные куки
+    s.get(f"{BASE_URL}/company/", timeout=15)
 
-    soup = BeautifulSoup(r.text, "html.parser")
-
-    # Собираем все скрытые поля формы (если есть CSRF-токен и т.п.)
-    payload = {}
-    form = soup.find("form")
-    if form:
-        for inp in form.find_all("input", {"type": "hidden"}):
-            if inp.get("name"):
-                payload[inp["name"]] = inp.get("value", "")
-
-    # Добавляем логин и пароль (точные поля из формы)
-    payload.update({
+    # POST на login_ajax.php — именно так логинится браузер
+    payload = {
         "login": PALOMA_LOGIN,
         "password": PALOMA_PASSWORD,
         "chk": "1",
-        "phone": "",
-    })
+        "phone": "+7undefined",
+    }
 
-    # POST — логинимся
-    s.post(LOGIN_URL, data=payload, timeout=15)
+    resp = s.post(LOGIN_URL, data=payload, timeout=15)
+    print(f"[login] status={resp.status_code} body={resp.text[:300]}")
     return s
 
 
