@@ -35,27 +35,41 @@ TZ = pytz.timezone("Asia/Atyrau")
 _session = None
 
 def create_session():
-    """Создаёт новую сессию и логинится на сайте через login_ajax.php."""
+    """Создаёт новую сессию через полный SSO-цикл: oldback → paloma365.kz → oldback."""
     s = requests.Session()
-    s.headers.update({"User-Agent": "Mozilla/5.0"})
+    s.headers.update({
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
+    })
 
-    # GET главной — получаем начальные куки
-    s.get(f"{BASE_URL}/company/", timeout=15)
+    # Шаг 1: GET oldback/company/ → получаем PHPSESSID, нас редиректит на login
+    r1 = s.get(f"{BASE_URL}/company/", timeout=15, allow_redirects=True)
+    print(f"[step1] url={r1.url}")
+    print(f"[step1] cookies={[(c.name, c.domain) for c in s.cookies]}")
 
-    # POST на login_ajax.php — именно так логинится браузер
+    # Шаг 2: POST login_ajax.php, следуем ВСЕМ редиректам (oldback → paloma365.kz → ...)
     payload = {
         "login": PALOMA_LOGIN,
         "password": PALOMA_PASSWORD,
-        "chk": "1",
         "phone": "+7undefined",
     }
+    r2 = s.post(LOGIN_URL, data=payload, timeout=30, allow_redirects=True)
+    print(f"[step2] final_url={r2.url}")
+    print(f"[step2] cookies={[(c.name, c.domain) for c in s.cookies]}")
 
-    # allow_redirects=False — останавливаем редирект, смотрим что сервер реально ставит
-    resp = s.post(LOGIN_URL, data=payload, timeout=15, allow_redirects=False)
-    print(f"[login] status={resp.status_code}")
-    print(f"[login] set-cookie headers={resp.headers.get('Set-Cookie', 'NONE')}")
-    print(f"[login] location={resp.headers.get('Location', 'NONE')}")
-    print(f"[login] all_cookies={[(c.name, c.value, c.domain) for c in s.cookies]}")
+    # Шаг 3: Возвращаемся на oldback — здесь должны появиться key и zid
+    r3 = s.get(f"{BASE_URL}/company/", timeout=15, allow_redirects=True)
+    print(f"[step3] final_url={r3.url}")
+    print(f"[step3] cookies={[(c.name, c.value[:8] if len(c.value)>8 else c.value, c.domain) for c in s.cookies]}")
+
+    # Проверяем есть ли ключевые куки
+    cookie_names = [c.name for c in s.cookies]
+    if "key" in cookie_names and "zid" in cookie_names:
+        print("[login] SUCCESS — key и zid получены!")
+    else:
+        print(f"[login] FAIL — нужных кук нет. Есть: {cookie_names}")
+
     return s
 
 
