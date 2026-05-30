@@ -219,6 +219,22 @@ def fetch_report(session: requests.Session, date_from: str, date_to: str, item_i
     return (results, total_qty, total_sum), None
 
 
+MARGIN = 22  # % маржи (фиксированно)
+
+
+def parse_sum(s: str) -> float:
+    """Парсит строку суммы из Paloma365 в float. Например '50 000' → 50000.0"""
+    try:
+        return float(s.replace(" ", "").replace(",", ".").replace(" ", ""))
+    except Exception:
+        return 0.0
+
+
+def fmt_num(n: float) -> str:
+    """Форматирует число с пробелами: 50000 → '50 000'"""
+    return f"{n:,.0f}".replace(",", " ")
+
+
 def format_report(results, total_qty, total_sum, date_from, date_to):
     lines = [
         f"📊 *Продажи: {date_from} — {date_to}*",
@@ -232,6 +248,14 @@ def format_report(results, total_qty, total_sum, date_from, date_to):
     lines.append("-" * 43)
     lines.append(f"{'ИТОГО':<28} {str(total_qty):>5} {str(total_sum):>8}")
     lines.append("```")
+
+    # Чистая прибыль: выручка × margin / (100 + margin)
+    revenue = parse_sum(total_sum)
+    if revenue > 0:
+        profit = revenue * MARGIN / (100 + MARGIN)
+        period = f"{date_from.split()[0]} — {date_to.split()[0]}"
+        lines.append(f"\n💰 Ваша чистая прибыль за {period} равна *{fmt_num(profit)} тг*")
+
     return "\n".join(lines)
 
 # ============================================================
