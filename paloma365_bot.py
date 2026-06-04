@@ -4,7 +4,7 @@ import os
 import pytz
 import asyncio
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
@@ -418,14 +418,40 @@ async def cmd_relogin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Готово! Проверь /today")
 
 # ============================================================
+# АВТО-ОТЧЁТ
+# ============================================================
+
+async def daily_report(context: ContextTypes.DEFAULT_TYPE):
+    """Ежедневный авто-отчёт в 19:10 по Asia/Atyrau."""
+    today = local_today().strftime("%d.%m.%Y")
+    result, error = await run_report(f"{today} 00:00", f"{today} 23:59")
+    if error:
+        await context.bot.send_message(
+            chat_id=MY_TELEGRAM_ID,
+            text=f"❌ Авто-отчёт не удался: {error}"
+        )
+        return
+    items, total_qty, total_sum = result
+    await context.bot.send_message(
+        chat_id=MY_TELEGRAM_ID,
+        text=format_report(items, total_qty, total_sum, f"{today} 00:00", f"{today} 23:59"),
+        parse_mode="Markdown"
+    )
+
+# ============================================================
 # ЗАПУСК
 # ============================================================
 
 async def post_init(application):
-    """Логинимся при старте бота."""
+    """Логинимся при старте бота и запускаем планировщик."""
     print("Логинюсь через Playwright...")
     await ensure_session()
     print("Готово!")
+
+    # Авто-отчёт каждый день в 19:10 по Asia/Atyrau
+    report_time = time(hour=19, minute=10, tzinfo=TZ)
+    application.job_queue.run_daily(daily_report, time=report_time)
+    print("✅ Авто-отчёт настроен на 19:10 (Asia/Atyrau)")
 
 if __name__ == "__main__":
     print("Запуск бота...")
